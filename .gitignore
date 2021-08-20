@@ -1,0 +1,13 @@
+
+*
+!plots/*
+!plots/
+!analytic_formulas.py
+!parametrizations_overview.ipynb
+!figures_korolev_mazin_2003.ipynb
+!figures_korolev_2008.ipynb
+!figures_pinsky_etal_2014.ipynb
+
+!README.md
+!LICENSE
+!.gitignore
