@@ -1,6 +1,6 @@
 ## mixed-phase clouds analytical framework
 
-The jupyter notebooks collected here implement an framework for anaytical tratment of mixed phase clouds,
+The jupyter notebooks collected here implement an framework for anaytical treatment of mixed phase clouds,
 as it was presented in a series of publications (co-)authored by A. Korolev.
 
 
