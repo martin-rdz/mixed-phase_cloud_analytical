@@ -25,7 +25,7 @@ Ra   = Rg/Mma
 Rv   = Rg/Mmv
 
 g    = 9.81
-rho_i= 900
+rho_i= 920
 rho_w= 1000.0
 
 T0 = 273.15
@@ -147,6 +147,12 @@ pstore = {
         #
         "HS": density_supercooled_water,
     },
+	"eta_a": { # dynamic viscosity of air
+        # Hilsenrath 1960
+        "H": lambda *x: (1.458e-6*x[0]**(3/2))/(x[0]+110.4),
+        #
+        "fixed": lambda *x: 1.8e-5, #kg/ ms,
+    },
 }
 
 def first_key(d):
@@ -172,6 +178,9 @@ def get_factors(
     
     print('input kwargs: ', kwargs)
     f = SimpleNamespace()
+
+    f.T = T
+    f.p = p
     f.Lw_param = kwargs.get('Lw', first_key(pstore['Lw']))
     f.Lw = pstore['Lw'][f.Lw_param](T)
     f.Li_param = kwargs.get('Li', first_key(pstore['Li']))
@@ -189,21 +198,24 @@ def get_factors(
     
     f.rho_w_param = kwargs.get('rho_w', first_key(pstore['rho_w']))
     f.rho_w = pstore['rho_w'][f.rho_w_param](T)
+	
+    f.eta_a_param = kwargs.get('eta_a', first_key(pstore['eta_a']))
+    f.eta_a = pstore['eta_a'][f.eta_a_param](T)
     
     # initial supersaturation over ice
     if rh == 'ice':
         sup0 = 0 # fraction not percent
-        e0 = f.Ei*(1+sup0)
+        f.e0 = f.Ei*(1+sup0)
     else:
-        e0 = rh*f.Ew/100
+        f.e0 = rh*f.Ew/100.
     
     ma = 1
-    mv=ma*Mmv*e0/(Mma*(p-e0))
+    mv=ma*Mmv*f.e0/(Mma*(p-f.e0))
     print('mv ', mv) if verbose else None
     mt = ma + mv
     print('weigth of adiabatic blob ', mt) if verbose else None
-    Rt = Rg*(mv*Mma+ma*Mmv)/((ma+mv)*Mma*Mmv)
-    print('gas constant moist air ', Rt) if verbose else None
+    f.Rt = Rg*(mv*Mma+ma*Mmv)/((ma+mv)*Mma*Mmv)
+    print('gas constant moist air ', f.Rt) if verbose else None
     
     f.cp_d_param = kwargs.get('cp_d', first_key(pstore['cp_d']))
     cp_d = pstore['cp_d'][f.cp_d_param](T)
@@ -217,7 +229,7 @@ def get_factors(
     # somehow fixed value in dQ_vs_Nr_P_T_mixed.m
     #f.cp = 1006.1
     
-    qv_abd = (e0/(Rv*T))/((p-e0)/(Ra*T))
+    qv_abd = (f.e0/(Rv*T))/((p-f.e0)/(Ra*T))
     print("qv", qv_abd, mv) if verbose else None
     print('cpt vs cp', f.cp, (1 + 0.87*qv_abd)*1003) if verbose else None
     
@@ -226,25 +238,31 @@ def get_factors(
 #     qv   = (f.Ew/(Rv*T))/((p-f.Ew)/(Ra*T))
 #     print('after', qv, T)
     
-    f.rho_a= p/(Rt*T)
+    f.rho_a= p/(f.Rt*T)
     f.rho_dry = p/(Ra*T)
-    print('rho_air (with Rt)', p/(Rt*T), '\n Ra', p/(Ra*T)) if verbose else None
+    print('rho_air (with Rt)', p/(f.Rt*T), '\n Ra', p/(Ra*T)) if verbose else None
     f.ksi = f.Ew/f.Ei
+	
+    f.nu_a = f.eta_a/f.rho_dry
 
     # correction factors for the pinsky notation
     f.upsilon_w =((3*f.rho_a)/(4*np.pi*f.rho_w))**(1/3)
     f.upsilon_i = ((3*f.rho_a)/(4*np.pi*rho_i))**(1/3)/(f.ksi*c)
     
-    
-    f.a0 = g/(Rt*T)*(f.Lw*Rt/(f.cp*Rv*T)-1)
+    f.a0 = g/(f.Rt*T)*(f.Lw*f.Rt/(f.cp*Rv*T)-1)
     f.a1 = 1.0/mv + (f.Lw*f.Lw)/(f.cp*Rv*T**2)
     f.a2 = 1.0/mv + (f.Lw*f.Li)/(f.cp*Rv*T**2)
     f.a3 = 1.0/mv + (f.Li*f.Li)/(f.cp*Rv*T**2)
-    # exactly what is written in the paper
-    f.Aw = 1.0/((f.rho_w*f.Lw*f.Lw/(f.k*Rv*T**2))+(f.rho_w*Rv*T/(f.Ew*f.D)))
-    f.Ai = 1.0/((rho_i*f.Li*f.Li/(f.k*Rv*T**2))+(rho_i*Rv*T/(f.Ei*f.D)))
+	
+	# Growth factors for ice and water
+	#
+    # exactly what is written in the Korolev papers
+    f.Aw_alt = 1.0/((f.rho_w*f.Lw*f.Lw/(f.k*Rv*T**2))+(f.rho_w*Rv*T/(f.Ew*f.D)))
+    f.Ai_alt = 1.0/((rho_i*f.Li*f.Li/(f.k*Rv*T**2))+(rho_i*Rv*T/(f.Ei*f.D)))
     # different coefficients from the matlab implementation
-    rho_v = e0/(Rv*T)
+	# the -1 is frequently omitted (Lamb Verlinde Eq. 8.18, Khvorostyanov Curry Eq. 5.2.15b)
+	# ... slight differences at all temperatures
+    rho_v = f.e0/(Rv*T)
     kw2 = (f.Lw/(Rv*T)-1)*f.Lw*rho_v*f.D/(T*f.k)
     kw1 = f.D*rho_v/(f.rho_w*(kw2+1))
     f.Aw = kw1
