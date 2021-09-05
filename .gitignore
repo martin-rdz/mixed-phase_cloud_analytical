@@ -3,11 +3,14 @@
 !plots/*
 !plots/
 !analytic_formulas.py
+!aux_data.py
 !parametrizations_overview.ipynb
 !figures_korolev_mazin_2003.ipynb
 !figures_korolev_2008.ipynb
 !figures_pinsky_etal_2014.ipynb
 !figures_theory_chapter_thesis_radenz.ipynb
+!plot_IGR_dep_density.ipynb
+!habit_adaptive_crystal_growth.ipynb
 
 !README.md
 !LICENSE
